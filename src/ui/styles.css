@@ -317,6 +317,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; margin: 0; 
 .quiz__exp { margin-top: 10px; padding: 10px 12px; border-radius: 10px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .quiz__exp--right { background: rgba(63, 174, 122, 0.12); }
 .quiz__exp--wrong { background: rgba(212, 85, 74, 0.12); }
+.quiz__details { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.5; }
 .think__head { display: flex; align-items: center; gap: 10px; }
 .think__badge { font-weight: 700; color: #cfe0fa; }
 .think__count { flex: 1; font-size: 12.5px; color: var(--muted); }

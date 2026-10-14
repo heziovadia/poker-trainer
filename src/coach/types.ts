@@ -101,6 +101,8 @@ export interface Quiz {
   question: string;
   options: QuizOption[];
   explanation: string;
+  /** Optional extra lines shown under the explanation (e.g. the actual out cards). */
+  details?: string[];
 }
 
 /**

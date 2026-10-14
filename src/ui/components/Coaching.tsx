@@ -19,7 +19,12 @@ export function QuizCard({ q, onAnswer, onClose }: { q: QuizState; onAnswer: (i:
       </div>
       {answered ? (
         <div className={`quiz__exp ${right ? 'quiz__exp--right' : 'quiz__exp--wrong'}`}>
-          <strong>{right ? 'נכון! ' : 'לא בדיוק. '}</strong>{q.quiz.explanation}
+          <div><strong>{right ? 'נכון! ' : 'לא בדיוק. '}</strong>{q.quiz.explanation}</div>
+          {q.quiz.details && (
+            <ul className="quiz__details">
+              {q.quiz.details.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          )}
           <button className="btn-primary btn-sm" onClick={onClose}>עכשיו תחליט על הפעולה ▸</button>
         </div>
       ) : (

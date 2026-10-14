@@ -4,7 +4,8 @@ import { createTable, startHand, applyAction, getPlayerView, totalChips, GameSta
 import { decideBotAction } from '../src/bots/bot';
 import { analyzeDecision } from '../src/coach/analyze';
 import { thinkSteps } from '../src/coach/think';
-import { makeQuiz } from '../src/coach/quiz';
+import { makeQuiz, outsDetails } from '../src/coach/quiz';
+import { calculateOuts } from '../src/engine/boardAnalysis';
 import { estimateRange } from '../src/coach/ranges';
 import { emptyStats, recordDecision, recordHand, recordQuiz, buildReport, quizProbability } from '../src/training/stats';
 import { adaptiveHole } from '../src/training/adaptive';
@@ -231,5 +232,20 @@ describe('range buckets', () => {
     expect(bucketOf(parseCards('Ac 2d'), board)).toBe('air'); // board pair only
     expect(bucketOf(parseCards('Jd 2d'), board)).toBe('strong'); // trips
     expect(bucketOf(parseCards('8c 5d'), parseCards('8h 5c 2s Kd 9c'))).toBe('strong'); // two pair with both cards
+  });
+});
+
+describe('outs quiz explanation', () => {
+  it('lists the actual out cards per group and how the count is built', () => {
+    const hole = parseCards('9h 8h');
+    const board = parseCards('7h 6h Kc');
+    const lines = outsDetails(hole, board, calculateOuts(hole, board));
+    const text = lines.join('\n');
+    expect(text).toContain('9 קלפים');
+    expect(text).toContain('10♣');
+    expect(text).toContain('5♠');
+    expect(text).toMatch(/9 \+ 6 = 15/);
+    expect(text).toContain('52 − 2 שלך − 3 בלוח = 47');
+    for (const l of lines) if (l.includes('%')) expect(l).toMatch(/[÷×]/);
   });
 });

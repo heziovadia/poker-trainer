@@ -1,8 +1,8 @@
 /** Short multiple-choice questions shown before the hero acts (adaptive frequency). */
-import { Rng, shuffle, cardsToPretty } from '../engine/cards';
+import { Card, Rng, shuffle, cardsToPretty, rankOf, suitOf, rankLabel, SUIT_SYMBOLS } from '../engine/cards';
 import { PlayerView } from '../engine/game';
 import { evaluate, HandCategory, CATEGORY_NAMES } from '../engine/evaluator';
-import { calculateOuts, findDraws, analyzeBoard } from '../engine/boardAnalysis';
+import { calculateOuts, findDraws, analyzeBoard, OutsResult } from '../engine/boardAnalysis';
 import { classOf, preflopPercentile } from '../engine/handClasses';
 import { OPEN_RANGE } from '../bots/profiles';
 import { Quiz, Topic } from './types';
@@ -13,6 +13,61 @@ const catLabel = (c: HandCategory) => `${CATEGORY_NAMES[c].he} (${CATEGORY_NAMES
 function options(correct: string, wrong: string[], rng: Rng) {
   const uniq = [...new Set(wrong.filter((w) => w !== correct))].slice(0, 3);
   return shuffle([{ label: correct, correct: true }, ...uniq.map((label) => ({ label, correct: false }))], rng);
+}
+
+const byRankDesc = (cs: Card[]) => [...cs].sort((a, b) => rankOf(b) - rankOf(a) || suitOf(a) - suitOf(b));
+const uniqRanks = (cs: Card[]) => [...new Set(byRankDesc(cs).map(rankOf))].map(rankLabel);
+
+/** Why each group of cards is an out, in plain words. */
+function outReason(category: HandCategory, cards: Card[]): string {
+  switch (category) {
+    case HandCategory.Flush: {
+      const suits = [...new Set(cards.map(suitOf))].map((s) => SUIT_SYMBOLS[s]).join('');
+      return `כל ${suits} שיגיע נותן לך 5 קלפים מאותו סוג`;
+    }
+    case HandCategory.Straight:
+      return `כל ${uniqRanks(cards).join(' או ')} משלים לך 5 קלפים ברצף`;
+    case HandCategory.OnePair:
+      return `מזווג את ה-${uniqRanks(cards).join('/')} שלך → זוג גבוה מכל הלוח (Top Pair)`;
+    case HandCategory.TwoPair:
+      return `מזווג קלף שלך (${uniqRanks(cards).join('/')}) → שני זוגות`;
+    case HandCategory.Trips:
+      return `קלף שלישי לזוג שלך (${uniqRanks(cards).join('/')}) → שלישייה`;
+    case HandCategory.FullHouse:
+      return 'משלים לך Full House';
+    case HandCategory.Quads:
+      return 'משלים לך רביעייה';
+    case HandCategory.StraightFlush:
+      return 'משלים לך רצף בצבע';
+    default:
+      return '';
+  }
+}
+
+/** The actual out cards, group by group, plus how the count and the % are built. */
+export function outsDetails(hole: Card[], board: Card[], o: OutsResult): string[] {
+  const n = o.outs.length;
+  const lines = [`הקלפים שלך: ${cardsToPretty(hole)} · הלוח: ${cardsToPretty(board)}`];
+  if (!n) {
+    lines.push('אף קלף שיגיע לא נותן לך יד שכנראה מנצחת (זוג נמוך מהלוח, או זוג שעולה על הלוח עצמו, לא נחשבים Outs).');
+    return lines;
+  }
+  // Players count a straight-flush card as one of the 9 flush outs, so show it there.
+  const sf = o.groups.find((g) => g.category === HandCategory.StraightFlush);
+  const flush = o.groups.find((g) => g.category === HandCategory.Flush);
+  const groups = sf && flush
+    ? o.groups.filter((g) => g !== sf).map((g) => (g === flush ? { ...g, cards: [...sf.cards, ...g.cards] } : g))
+    : o.groups;
+  for (const g of groups) {
+    const extra = g.category === HandCategory.Flush && sf && flush ? ` (${cardsToPretty(byRankDesc(sf.cards))} אפילו נותנים רצף בצבע)` : '';
+    lines.push(`▸ ${catLabel(g.category)} — ${g.cards.length} קלפים: ${cardsToPretty(byRankDesc(g.cards))} — ${outReason(g.category, g.cards)}${extra}.`);
+  }
+  if (groups.length > 1) lines.push('כל קלף נספר פעם אחת בלבד, לפי היד הכי טובה שהוא נותן (למשל קלף שמשלים גם רצף וגם צבע נספר רק בצבע).');
+  const sum = groups.length > 1 ? `${groups.map((g) => g.cards.length).join(' + ')} = ${n}` : `${n}`;
+  lines.push(`סה״כ Outs: ${sum}. קלפים שלא ראית: 52 − ${hole.length} שלך − ${board.length} בלוח = ${o.unseen}.`);
+  lines.push(`סיכוי שהקלף הבא הוא Out ≈ ${pct(o.nextCardPct)} (${n} ÷ ${o.unseen}).`);
+  if (board.length === 3) lines.push(`סיכוי עד ה-River (שני קלפים) ≈ ${pct(o.byRiverPct)} (1 − ${o.unseen - n}/${o.unseen} × ${o.unseen - 1 - n}/${o.unseen - 1}). כלל אצבע: ${n} × 4 ≈ ${n * 4}%.`);
+  return lines;
 }
 
 export function makeQuiz(view: PlayerView, topic: Topic, rng: Rng): Quiz | null {
@@ -56,6 +111,7 @@ export function makeQuiz(view: PlayerView, topic: Topic, rng: Rng): Quiz | null 
         explanation: n
           ? `${n} Outs: ${o.groups.map((g) => `${CATEGORY_NAMES[g.category].en} ${g.cards.length}`).join(', ')}. סיכוי לקלף הבא ≈ ${pct(o.nextCardPct)} (${n} ÷ ${o.unseen}).`
           : 'אין קלפים שמשפרים אותך באופן משמעותי.',
+        details: outsDetails(view.myHole, view.board, o),
       };
     }
     case 'potOdds': {
